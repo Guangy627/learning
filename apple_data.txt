@@ -1,0 +1,114 @@
+1. codeium data 
+    utc0/chat,user timestamp 不一致/ 考虑不同时区数据statistic）/
+    json format-- api_key as main key
+    deduplicate data cuz of our daily update strategy
+    update strategy: (bash + cron job -- auto)
+    
+    trigger 1/0
+    refresh_date -- 回溯数据
+    log - track error
+    sharepoint -- backup
+
+    azure group  -- get licensed user
+    filter -- AD group user with codeium user -- track user conditions(Active/inactive)
+    update pcw table -- combine with user data table -- write in json
+
+
+     
+    
+    from user api to get full list; user privacy(allow list/ deny list)/
+    
+roster --
+1. large size data -- parrelel strategy for api to fetch original data. (0-9)
+2. 递归
+3. circle -- how to check circle string / manager chain
+4. use queue to build hirarchy -- get manager chain
+5. csv 
+6. email expand data frame 
+
+s3 update data
+
+
+/ gitlog(unit 3 sources--git command (diff/patch))/ filter project/-- 
+
+
+
+    a. data resource -- api - windsurf/azure 
+    b. clean/ restruct this data  
+        (details: several point) delete inactive / allign email(several column)/ 
+    c. error/ batch -- all (x) batch large/ api deny // everyday(satisfy daily requiment)
+
+
+batch pipeline/ stream pipeline 
+
+
+
+storyline:
+
+1. situation -- ai tool adoption / support ai strategy for leadership 
+2. task
+3. action
+4. result
+
+eg: codeium data
+
+
+data engineer -- prepare training data -- sampling strategy / self-generate data 
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+storyline1
+第一个项目是为了track pan-dell engineering system ai adoption, to support daily statistics for leadership review.
+
+整个项目综合多个数据源，然后减少百分之80的manual operation， 所以我们大多数都是采取的自动化pipeline， 这里的手动部分就是evaluate data
+
+整体的数据来自api（azure cloud, windsurf data analytics, github, gitlab, bitbucket), 包含用户行为日志，比如chat/autocompletion
+我的目标就是设计一个可以每日更新的batch pipeline， 需要保证数据的准确以及隐私性。
+
+使用cron job + bash 定时任务自动触发每日更新
+从api_key作为主键，获取数据；
+进行数据清洗，utc0时区以及本地时区， 确保统计口径一致
+根据refresh_Date 回溯缺失的数据，去重以避免每日更新产生的重复记录
+
+错误处理： 记录log文件追溯异常
+
+数据合并：
+从azure获取整体的licensed users，combine codeium user 数据， 以user_id/email为key，对数据进行联结，并区分active/inactive user  
+
+
+备份：我们还会将每日结果同步到sharepoint进行备份；
+
+这一步保证了关键数据分析指标的生成， 支持各个管理层级追踪用户的adoption，且具备了回溯与审计的能力
+
+storyline2--
+roster组织架构数据获取， 这一个project是为了支持各层级追踪用户adoption而设计的， 难点在于组织层级数据规模巨大， 需要设计并行策略， 且存在递归和环的问题。
+目标是从azure api想办法获取全量数据，清洗并构建组织层级关系表
+
+并行请求数据， 将data source按照编号0-9 分片并行抓取，同时还用了pool parallel，提高了大数据量获取效率
+然后用双端队列构建完整的管理链， 支持l2-l10的manager chain
+检查是否有环 
+
+数据清洗-- 生成csv文件， 并标准化email字段，此时email key不唯一，而我们希望所有email都能找到对应的信息，支持邮件到用户的映射
+
+这一步生成了正确的且层级完整的组织结构表， 为后续的用户行为统计分析打基础
+
+storyline3 --
+为了衡量工程师的真实贡献，需要分析git commit日志， 比如增删代码行， 但是来源复杂，比如多个repo， 多个数据源等
+
+我们构建的gitlog pipeline能每天抽取commit 数据， 并结合project名单进行过滤，再输出开发指标
+
+数据采集-- 用git diff/ patch命令提取代码改动行数
+
+与roster/codeium 数据结合 生成完整的生产力指标
+
+最终数据存入s3，以便后续工作
+
+########################################################################################################################
+
+我们在做sft的时候面临一个现实问题，高质量人工标注数据非常稀缺且昂贵，如果完全依赖人工，很难在短时间内启动sft和rl实验
+
+所以我们的目标是搭建一个reference model，对sft进行冷启动，并设计一种自生成数据策略，既能快速产出足够的sft数据，又能为rl阶段生成偏好比较数据，保证训练可以持续推进
+
+1.sft阶段：我们用五个base llm model，搭建了一个专门用于生成数据的agent，通过给定指令模拟不同language level的说话行为，自生成prompt-response对，用来构建基础训练集；
+2.采用均衡采样策略，覆盖多种意图(多种不同场景的metric查询)，不同难道层次（filter多或者少，聚合多或少， 数据量大或小），控制分布，避免过度集中于trival case.
+    此处可以优化：在基座sft冷启动完成后 还可以选择用一部分数据，权重采样，让模型真正的学习到真实任务分布；为什么不在一开始就这么做，
