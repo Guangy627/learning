@@ -1,0 +1,27 @@
+sft evaluation --  对齐特定任务
+
+本质上是监督学习 可以用文本生成metrics+loss 分析
+1. 交叉熵函数， 直接评估模型在验证集的困惑度 ppl
+2. loss收敛平稳， 模型基本学习到了分布
+
+文本匹配指标：
+rouge： 衡量n-gram 重叠情况
+bleu 翻译任务
+accuracy- 如任务是分类或者是唯一答案 
+
+人工评估-
+人类打分 流畅 相关 完整 偏好 --- 个人认为这个指标会比自动指标更关键， 而且可以作为下一阶段的数据集
+
+
+
+rl evaluation  -- 对齐人类偏好
+
+1. rl loss-- ppo/grpo 会有policy loss, value loss, kl penalty
+    看趋势 快乐kl过大--模型分布离ref model太多；
+2.reward score -- reward model当然是reward score越高越好； 说明优化目标学习的好
+
+3.任务/对齐效果指标
+human eval/ rouge,bleu/ diversity, length control/
+特定任务是否对齐
+
+
