@@ -93,11 +93,13 @@ roster组织架构数据获取， 这一个project是为了支持各层级追踪
 这一步生成了正确的且层级完整的组织结构表， 为后续的用户行为统计分析打基础
 
 storyline3 --
-为了衡量工程师的真实贡献，需要分析git commit日志， 比如增删代码行， 但是来源复杂，比如多个repo， 多个数据源等
+为了衡量工程师的真实贡献，我们与奥分析git commit日志 比如增删代码行数 活跃开发者， 但数据源来源复杂，戴尔内部用了三个不同的source code management工具， 每个工具都有自己的api和差异化的数据结构
+我们的目标是设计一个能够统一gitlog的 data pipeline，能够每天抽取commit数据，获取改动的patch信息，并且结合项目名单进行过滤，最后输出一个标准化后的开发指标
 
-我们构建的gitlog pipeline能每天抽取commit 数据， 并结合project名单进行过滤，再输出开发指标
-
-数据采集-- 用git diff/ patch命令提取代码改动行数
+1.为了降低存储和网络开销，我们用了git clone --bare --filter=blob:none 只下载必要的meta data
+2，对仓库执行git log --all 获取完整的commit历史
+3.增量数据获取，利用scm api获取每个commit的patch信息，统计新增和删除的代码行数
+4.按照project allow list过滤目标仓库；统一commit信息和开发者的email
 
 与roster/codeium 数据结合 生成完整的生产力指标
 
@@ -132,3 +134,6 @@ answer：主要是因为我想把token开销用在工具调用或者上下文工
 
 2.为什么不用off policy：
 Off-policy 虽然样本利用率高，但分布偏移风险大，尤其是生成式 LLM 任务里可能导致 reward overfitting。
+
+3.cicd
+为什么不用jenkins schedule job/github actions -- 我们在讲产品交付给dev ops团队后就是用jenkins trigger的 -- 后期应该会转成github action
