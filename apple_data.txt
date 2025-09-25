@@ -129,3 +129,6 @@ storyline3 --
 
 answer：主要是因为我想把token开销用在工具调用或者上下文工程中，如果我单纯用prompt engineering做一次性指令，是可以但是不具有泛化性，用slm+lora进行plug in的插拔可以有效的泛化任务范围；
 相比起训练需要的成本， 我认为system prompt的token消耗会跟昂贵，且不具有灵活性？？可以更好的支持产品化。
+
+2.为什么不用off policy：
+Off-policy 虽然样本利用率高，但分布偏移风险大，尤其是生成式 LLM 任务里可能导致 reward overfitting。
