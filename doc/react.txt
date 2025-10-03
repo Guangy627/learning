@@ -106,3 +106,121 @@ A) ReAct → CoT-SC：当 ReAct 在给定步数内未能返回答案时，回退
 B) CoT-SC → ReAct：当 n 个 CoT-SC 样本中的多数答案出现次数少于 n/2（即内部知识对当前任务的支持可能不足）时，回退到 ReAct。
 鉴于在大规模上手动标注推理轨迹与动作的难度，我们采用类似 Zelikman 等（2022）的自举方法：使用由 ReAct（以及其他基线）生成、且答案正确的 3000 条轨迹，对较小的语言模型（PaLM-8/62B）进行微调，使其在给定输入问题/主张时，能够解码出包含“思考、行动、观察”的完整轨迹。更多细节见附录 B.1。
 
+官方结论：
+ReAct 胜过 Act：有“思考→行动”的链路，能更好地把检索来的事实综合成最终答案。
+
+ReAct vs CoT：在 FEVER（要判 SUPPORTS/REFUTES，细微事实差别很关键）里 ReAct 更好（60.9 vs 56.3）；在 HotpotQA 里 CoT 略好（29.4 vs 27.4）。
+
+组合更强：ReAct ↔ CoT-SC 的双向回退最强：只用 3–5 个样本就能达到 CoT-SC(21) 的表现。
+
+微调更显著：用 3,000 条 ReAct 轨迹微调后，小模型 ReAct-FT > 大模型提示（8B-FT>62B-prompt；62B-FT>540B-prompt）。
+
+为什么：从成功/失败模式看差异（表 2 的核心）
+
+成功（正确）里：
+
+CoT 幻觉更多：成功样本里 CoT 的“假阳性”（幻觉的推理或事实）= 14%，ReAct=6%。
+→ 原因：CoT 只靠“内知识”，容易“想当然”；ReAct 有外部检索，更落地。
+
+失败里：
+
+ReAct 的主要失败=推理错误（47%）：结构化的“思考-行动-观察”让它更踏实，但灵活性差些，容易在重复思考/动作里打转（未能决定“下一步该做什么”）。
+
+ReAct 对检索质量很敏感：23% 的错误来自“search 结果无信息或含金量低”，把后续推理带偏。
+
+CoT 的主要失败=幻觉（56%）：没有外部证据束缚，纯内生的错误占大头。
+
+标签含糊两者接近（~28–29%）：有些题目标注本身就含糊或过时。
+
+具体数字与设定（和你代码密切相关）
+
+步数上限：他们用 HotpotQA=7、FEVER=5；继续加步数并不会提升 ReAct 表现。
+
+CoT-SC：n=21、温度 0.7，多数票 > n/2（≥11） 才算自信。
+
+样本效率：ReAct + CoT-SC 只需 3–5 个样本就能追平 CoT-SC(21) 的效果。
+
+微调：用 3k 条“含思考+动作+观察”的正确轨迹微调后，
+
+PaLM-8B（ReAct-FT） > 所有 PaLM-62B 的提示版；
+
+PaLM-62B（ReAct-FT） > 所有 540B 的提示版；
+
+说明：学会“怎么检索+怎么用检索”比背知识更可迁移。微调 Standard/CoT 明显不如 ReAct/Act
+
+第四章交互式决策
+关键结果
+ALFWorld（表3）
+
+ReAct（best of 6）：71% 平均成功率
+
+Act（best of 6）：45%
+
+BUTLER（best of 8）：37%
+
+甚至 ReAct（worst of 6）= 48% 也超过 Act/BUTLER 的最优试验。
+
+ReAct 相对 Act 的提升在 6 次对照里一致，相对增益 33%–90%，平均 62%。
+
+失败对比：Act 常见不会合理分解目标或跟踪当前状态；ReAct 用稀疏 Thought 在关键节点“定方向/记进度/换策略”。
+
+WebShop（表4）
+
+Act：Score 62.3 / SR 30.1（一小样本提示就能接近 IL/IL+RL）
+
+ReAct：Score 66.6 / SR 40.0（+10% 绝对提升，显著优于 IL 与 IL+RL）
+
+Human：Score 82.1 / SR 59.6（与人类还有差距——人类会做更多探索与检索重构，当前纯提示方法仍欠缺
+
+key point: sparse though 的构建：
+[需要思考(THINK)的可检测时机 - Plain Text]
+
+1) 重复/没进展
+   - 连续 k 步 Observation 基本一致，或包含 "No more results" / "No result" 等提示
+   - 连续 k 步访问/点击同一类别页面（商品/房间未变化）
+   => 触发：生成一行 Thought，总结现状 + 提出新的搜索/导航策略
+
+2) 分叉变多（分支爆炸）
+   - 当前可选动作数量激增（> branch_threshold），如 WebShop 出现大量相似候选项
+   => 触发：生成一行 Thought，给出筛选标准/排序依据（先过滤哪个条件）
+
+3) 约束冲突 / 信息矛盾
+   - 预算超限、颜色/规格不匹配
+   - Observation 与先前假设/计划矛盾
+   => 触发：生成一行 Thought，定位冲突 + 重写约束/计划
+
+4) 子目标完成 / 切换节点
+   - 任务清单中的一个子目标已完成，需要决定下一个子目标
+   => 触发：生成一行 Thought，明确下一步计划/子目标
+
+5) 不确定性高
+   - 语言模型生成的动作 top-1 与 top-2 概率接近 (|p1 - p2| < epsilon)
+   - 或整体 logprob 很低/模型犹豫
+   => 触发：生成一行 Thought，先思考后再选择 Action
+
+6) 查询失败
+   - search / lookup 连续失败 k 次
+   => 触发：生成一行 Thought，改写查询或更换实体/路径
+
+直觉总结：
+- 没进展、分叉多、起冲突、要切换、很犹豫、常失败 —— 就该“想一下”（输出一行 Thought）。
+
+最后的相关工作：
+用于推理的语言模型（LM for reasoning）
+
+代表：Chain-of-Thought (CoT) 揭示了大模型可用“逐步思考”解题；随后有 Least-to-most、Zero-shot CoT、Self-consistency 等扩展；也有把推理流程拆分或自举的框架（Selection–Inference、STaR、Scratchpad、Faithful reasoning 等）。这些方法多聚焦于固定/隔离的推理过程，并不与外部交互紧密结合。
+
+ReAct
+
+ReAct 的不同：不仅做“静态推理”，而是把动作及其观察串入同一输入流，让模型在“推理—行动—观察”的闭环中更准确地推理，并能处理超出纯推理的问题（如交互式决策）。
+
+ReAct
+
+用于决策的语言模型（LM for decision making）
+
+代表：WebGPT 等利用 LM 驱动网页交互、再配合大量人类反馈做强化学习；对话/任务型系统（BlenderBot、Sparrow、SimpleTOD）也让 LM 决策 API 调用，但依赖昂贵数据与人类标注；在具身/交互环境里，SayCan、Inner Monologue (IM) 用 LM 做动作规划或把环境反馈注入“内心独白”。
+
+ReAct
+
+ReAct 的不同：不依赖大规模 RLHF 或昂贵标注，而是用少量 in-context 轨迹就能把“思考（Thought）”与“行动（Action）”整合到统一轨迹里，形成可解释且成本更低的策略学习方式。
+
